@@ -19,7 +19,7 @@ KernelIntrinsicsCUDAExt = "CUDA"
 KernelIntrinsicsMetalExt = "Metal"
 
 [compat]
-AMDGPU = "1"
+AMDGPU = "1, 2"
 CUDA = "5.9, 6"
 KernelAbstractions = "0.9.38"
 LLVM = "9"
