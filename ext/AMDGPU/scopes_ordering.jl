@@ -32,6 +32,11 @@ const STORE_ORDER_TO_GCN = Dict{Type{<:Ordering},String}(
     Release => "release",
 )
 
+# LLVM's system scope is the default one, which the IR doesn't spell out:
+# `syncscope("system")` names an unknown, target-specific scope instead, which the
+# AMDGPU back-end doesn't support.
+syncscope_ir(scope_str) = scope_str == "system" ? "" : " syncscope(\"$scope_str\")"
+
 # Scoped orderings (need syncscope), unscoped ones do not
 const SCOPED_LOAD_ORDERINGS = [Relaxed, Acquire]
 const SCOPED_STORE_ORDERINGS = [Relaxed, Release]
@@ -57,7 +62,7 @@ for ScopeType in [Workgroup, Device, System]
         scope_str = SCOPE_TO_GCN[ScopeType]
         order_str = FENCE_ORDER_TO_GCN[OrderType]
         ir = """
-            fence syncscope("$scope_str") $order_str
+            fence$(syncscope_ir(scope_str)) $order_str
             ret void
         """
         @eval begin
@@ -78,7 +83,7 @@ for ScopeType in [Workgroup, Device, System]
         order_str = LOAD_ORDER_TO_GCN[OrderType]
         use_syncscope = OrderType in SCOPED_LOAD_ORDERINGS
         for (T, (llvm_type, align)) in TYPE_TO_LLVM
-            syncscope = use_syncscope ? " syncscope(\"$scope_str\")" : ""
+            syncscope = use_syncscope ? syncscope_ir(scope_str) : ""
             ir = """
                 %val = load atomic $llvm_type, $llvm_type addrspace(1)* %0$syncscope $order_str, align $align
                 ret $llvm_type %val
@@ -110,7 +115,7 @@ for ScopeType in [Workgroup, Device, System]
         order_str = STORE_ORDER_TO_GCN[OrderType]
         use_syncscope = OrderType in SCOPED_STORE_ORDERINGS
         for (T, (llvm_type, align)) in TYPE_TO_LLVM
-            syncscope = use_syncscope ? " syncscope(\"$scope_str\")" : ""
+            syncscope = use_syncscope ? syncscope_ir(scope_str) : ""
             ir = """
                 store atomic $llvm_type %1, $llvm_type addrspace(1)* %0$syncscope $order_str, align $align
                 ret void
